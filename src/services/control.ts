@@ -28,7 +28,7 @@ export async function readControlSetpoint() {
 
 export async function writeControlSetpoint(setpoint: number) {
   if (!supabase) throw new Error('Supabase n’est pas configuré.')
-  if (setpoint < 0 || setpoint > 999.99 || Math.round(setpoint * 100) !== setpoint * 100) {
+  if (setpoint < 0 || setpoint > 999.99 || Number(setpoint.toFixed(2)) !== setpoint) {
     throw new Error('La consigne doit être comprise entre 0 et 999,99 °C avec au plus deux décimales.')
   }
   const { data: { user }, error: authError } = await supabase.auth.getUser()

@@ -22,6 +22,17 @@ L’horodatage est généré par défaut par Supabase ; `id` est auto-incrément
 
 Le menu « Lecture » choisit un polling de 2, 5, 10, 30 ou 60 secondes, ou le mode manuel. Le réglage est mémorisé dans le navigateur. Le bouton d’actualisation force une lecture ponctuelle. Le toggle « Direct » active les notifications Supabase Realtime ; le polling reste une solution de repli. Pour la lecture en direct, `supabase/schema.sql` ajoute `measurements` à la publication `supabase_realtime` ; vérifier que Realtime est activé pour la table dans les paramètres Supabase. Le dashboard et la page Historique affichent les mesures réelles. L’historique récupère les 1 000 dernières lignes.
 
+## Dépannage de connexion
+
+La connexion utilise `signInWithPassword` avec l’adresse courriel et le mot de passe d’un utilisateur Supabase Auth.
+
+1. Vérifier que l’utilisateur a été créé dans le même projet Supabase que l’application, identifié par `VITE_SUPABASE_URL` dans `.env.local`.
+2. Vérifier l’adresse et le mot de passe. Une erreur « Invalid login credentials » indique généralement des identifiants incorrects ou un utilisateur du mauvais projet.
+3. Si la confirmation d’adresse est activée, confirmer l’utilisateur dans Supabase Auth > Users, puis réessayer. « Email not confirmed » signale ce cas.
+4. La connexion ne dépend pas des politiques RLS. Si la connexion réussit mais que l’enregistrement de la consigne échoue, vérifier que `supabase/schema.sql` a été exécuté dans ce projet et que l’utilisateur dispose bien d’une session `authenticated`.
+
+L’application affiche le détail de l’erreur de connexion sous le formulaire. Ne jamais utiliser la clé `service_role` dans le navigateur ; seule la clé publique doit être configurée avec le préfixe `VITE_`.
+
 ## Écriture de la consigne cible
 
 `supabase/schema.sql` crée aussi `control_settings`, distincte de `measurements` afin de ne pas modifier l’historique des capteurs. La page Maintenance permet à un utilisateur connecté par Supabase Auth de lire et d’enregistrer une consigne cible unique. Les écritures sont limitées aux rôles `authenticated` et la politique lie l’utilisateur à `updated_by`.
