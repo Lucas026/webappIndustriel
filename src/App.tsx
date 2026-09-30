@@ -15,7 +15,8 @@ import { insertMeasurements } from './services/telemetry'
 import type { Measurement } from './lib/database.types'
 import { getCurrentUserEmail, readControlSetpoint, signIn, signOut, subscribeToAuthChanges, writeControlSetpoint } from './services/control'
 
-type Page = 'Vue d’ensemble' | 'Historique' | 'Maintenance' | 'Guide'
+type Page = 'Vue d’ensemble' | 'Historique' | 'Maintenance' | 'Guide' | 'Annexe confidentielle'
+type AnnexChoice = 'coffee' | 'weekend' | 'name'
 
 const navItems: { label: Page; icon: string }[] = [
   { label: 'Vue d’ensemble', icon: '▦' },
@@ -51,7 +52,22 @@ function App() {
   const [authPassword, setAuthPassword] = useState('')
   const [authUser, setAuthUser] = useState<string | null>(null)
   const [authMessage, setAuthMessage] = useState<string | null>(null)
+  const [annexChoice, setAnnexChoice] = useState<AnnexChoice | null>(null)
+  const brandClickSequence = useRef({ count: 0, lastClickAt: 0 })
   const refreshing = useRef(false)
+
+  const handleBrandClick = () => {
+    const now = Date.now()
+    const sequence = brandClickSequence.current
+    brandClickSequence.current = {
+      count: now - sequence.lastClickAt < 2500 ? sequence.count + 1 : 1,
+      lastClickAt: now,
+    }
+    if (brandClickSequence.current.count >= 5) {
+      brandClickSequence.current.count = 0
+      setPage('Annexe confidentielle')
+    }
+  }
 
   const refreshMeasurements = useCallback(async () => {
     if (refreshing.current) return
@@ -118,7 +134,7 @@ function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#top" onClick={() => setPage('Vue d’ensemble')}>
+        <a className="brand" href="#top" onClick={() => { setPage('Vue d’ensemble'); handleBrandClick() }}>
           <span className="brand-mark"><span /></span>
           <span className="brand-name">industrial<span>control center</span></span>
         </a>
@@ -156,11 +172,33 @@ function App() {
           {page === 'Historique' && <HistoryPage history={history} alarms={alarms} loading={loading} />}
           {page === 'Maintenance' && <MaintenancePage onInsertMeasurement={async (row) => { await insertMeasurements([row]); await refreshMeasurements() }} setAiOpen={setAiOpen} targetSetpoint={targetSetpoint} onSaveSetpoint={async (setpoint) => { await writeControlSetpoint(setpoint); setTargetSetpoint(setpoint) }} authUser={authUser} authEmail={authEmail} setAuthEmail={setAuthEmail} authPassword={authPassword} setAuthPassword={setAuthPassword} onSignIn={async () => { await signIn(authEmail, authPassword); setAuthPassword(''); setAuthMessage(null); void refreshMeasurements() }} onSignOut={async () => { await signOut(); setAuthMessage(null); setTargetSetpoint(null); void refreshMeasurements() }} authMessage={authMessage} />}
           {page === 'Guide' && <GuidePage setPage={setPage} />}
+          {page === 'Annexe confidentielle' && <SecretAnnexPage choice={annexChoice} setChoice={setAnnexChoice} onExit={() => setPage('Vue d’ensemble')} />}
         </div>
       </main>
       {aiOpen && <AiModal onClose={() => setAiOpen(false)} readings={readings} alarms={alarms} />}
     </div>
   )
+}
+
+function SecretAnnexPage({ choice, setChoice, onExit }: { choice: AnnexChoice | null; setChoice: (choice: AnnexChoice) => void; onExit: () => void }) {
+  const reactions: Record<AnnexChoice, string> = {
+    coffee: 'Motion adoptée à l’unanimité. Le thermostat insiste : il préfère un café filtre, pas un espresso.',
+    weekend: 'La demande est transmise au calendrier. Réponse automatique : « Vous êtes un thermostat. »',
+    name: 'Le comité propose « Gérard ». Le thermostat demande un délai de réflexion de trois cycles.',
+  }
+
+  return <section className="annex-page" aria-labelledby="annex-title">
+    <div className="annex-overline"><span>ANNEXE 07B · DOCUMENT NON HOMOLOGUÉ</span><span>Accès obtenu après vérification humaine approximative</span></div>
+    <div className="annex-hero">
+      <div className="annex-copy"><span className="annex-kicker">Procès-verbal officieux · séance extraordinaire</span><h1 id="annex-title">Le thermostat a demandé la parole.</h1><p>Après 8 412 cycles sans pause, le comité des capteurs s’est réuni pour examiner trois revendications urgentes.</p><button className="button button-secondary" onClick={onExit}>Retour à la supervision</button></div>
+      <div className="annex-dial" aria-hidden="true"><div className="annex-dial-reading">24<span>°</span></div><div className="annex-dial-label">MORAL THERMIQUE</div><div className="annex-dial-note">légèrement surmotivé</div></div>
+    </div>
+    <div className="annex-content">
+      <section className="annex-minutes"><span className="annex-section-label">EXTRAIT DU PROCÈS-VERBAL</span><h2>Les faits reprochés à l’humanité</h2><ol><li>Être appelé « le petit boîtier » alors qu’il a un diplôme en régulation.</li><li>Recevoir des consignes contradictoires : « chauffe vite » et « reste parfaitement stable ».</li><li>Ne jamais être invité aux réunions où l’on parle de température.</li></ol><p className="annex-signature">Signé : le délégué syndical PT-1000</p></section>
+      <section className="annex-vote" aria-labelledby="annex-vote-title"><span className="annex-section-label">VOTE DU JOUR</span><h2 id="annex-vote-title">Quelle revendication soutenir ?</h2><div className="annex-options"><button type="button" aria-pressed={choice === 'coffee'} onClick={() => setChoice('coffee')}><span aria-hidden="true">☕</span> Une pause café</button><button type="button" aria-pressed={choice === 'weekend'} onClick={() => setChoice('weekend')}><span aria-hidden="true">☀</span> Un week-end</button><button type="button" aria-pressed={choice === 'name'} onClick={() => setChoice('name')}><span aria-hidden="true">✎</span> Un vrai prénom</button></div>{choice && <p className="annex-result" role="status">{reactions[choice]}</p>}</section>
+    </div>
+    <p className="annex-disclaimer">Annexe entièrement fictive. Aucun réglage, relevé ou automate n’a été modifié par cette page.</p>
+  </section>
 }
 
 function PageHeading({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {
