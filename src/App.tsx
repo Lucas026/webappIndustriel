@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Area,
   CartesianGrid,
@@ -14,19 +14,23 @@ import { getMeasurements, subscribeToMeasurements } from './services/installatio
 import { insertMeasurements } from './services/telemetry'
 import type { Measurement } from './lib/database.types'
 import { getCurrentUserEmail, readControlSetpoint, signIn, signOut, subscribeToAuthChanges, writeControlSetpoint } from './services/control'
+import type { DocumentationDocument } from './DocumentationPage'
 
-type Page = 'Vue d’ensemble' | 'Historique' | 'Maintenance' | 'Guide' | 'Annexe confidentielle'
+const DocumentationPage = lazy(() => import('./DocumentationPage'))
+
+type Page = 'Vue d’ensemble' | 'Historique' | 'Maintenance' | 'Documentation' | 'Annexe confidentielle'
 type AnnexChoice = 'coffee' | 'weekend' | 'name'
 
 const navItems: { label: Page; icon: string }[] = [
   { label: 'Vue d’ensemble', icon: '▦' },
   { label: 'Historique', icon: '◷' },
   { label: 'Maintenance', icon: '⌁' },
-  { label: 'Guide', icon: '?' },
+  { label: 'Documentation', icon: '▤' },
 ]
 
 function App() {
   const [page, setPage] = useState<Page>('Vue d’ensemble')
+  const [documentationDocument, setDocumentationDocument] = useState<DocumentationDocument>('guide')
   const [readings, setReadings] = useState<Reading[]>([])
   const [alarms, setAlarms] = useState<AlarmEvent[]>([])
   const [history, setHistory] = useState<Reading[]>([])
@@ -147,7 +151,7 @@ function App() {
         <p className="nav-caption">ESPACE DE TRAVAIL</p>
         <nav className="navigation" aria-label="Navigation principale">
           {navItems.map((item) => (
-            <button key={item.label} className={`nav-item ${page === item.label ? 'selected' : ''}`} onClick={() => setPage(item.label)}>
+            <button key={item.label} className={`nav-item ${page === item.label ? 'selected' : ''}`} aria-label={item.label} title={item.label} onClick={() => setPage(item.label)}>
               <span className="nav-icon">{item.icon}</span>{item.label}
               {item.label === 'Maintenance' && <span className="nav-count">2</span>}
             </button>
@@ -170,8 +174,8 @@ function App() {
           {error && <div className="data-error" role="alert"><strong>Lecture des mesures impossible</strong><span>{error}</span><button className="text-button" onClick={() => void refreshMeasurements()}>Réessayer</button></div>}
           {page === 'Vue d’ensemble' && <Dashboard current={current} readings={filteredReadings} allReadings={readings} alarms={alarms} maxOvershoot={activeRangeOvershoot} range={range} setRange={setRange} setPage={setPage} setAiOpen={setAiOpen} loading={loading} error={error} realtimeEnabled={realtimeEnabled} realtimeStatus={realtimeStatus} refreshSeconds={refreshSeconds} customRefreshSeconds={customRefreshSeconds} />}
           {page === 'Historique' && <HistoryPage history={history} alarms={alarms} loading={loading} />}
-          {page === 'Maintenance' && <MaintenancePage onInsertMeasurement={async (row) => { await insertMeasurements([row]); await refreshMeasurements() }} setAiOpen={setAiOpen} targetSetpoint={targetSetpoint} onSaveSetpoint={async (setpoint) => { await writeControlSetpoint(setpoint); setTargetSetpoint(setpoint) }} authUser={authUser} authEmail={authEmail} setAuthEmail={setAuthEmail} authPassword={authPassword} setAuthPassword={setAuthPassword} onSignIn={async () => { await signIn(authEmail, authPassword); setAuthPassword(''); setAuthMessage(null); void refreshMeasurements() }} onSignOut={async () => { await signOut(); setAuthMessage(null); setTargetSetpoint(null); void refreshMeasurements() }} authMessage={authMessage} />}
-          {page === 'Guide' && <GuidePage setPage={setPage} />}
+          {page === 'Maintenance' && <MaintenancePage readings={readings} alarms={alarms} onInsertMeasurement={async (row) => { await insertMeasurements([row]); await refreshMeasurements() }} setAiOpen={setAiOpen} targetSetpoint={targetSetpoint} onSaveSetpoint={async (setpoint) => { await writeControlSetpoint(setpoint); setTargetSetpoint(setpoint) }} authUser={authUser} authEmail={authEmail} setAuthEmail={setAuthEmail} authPassword={authPassword} setAuthPassword={setAuthPassword} onSignIn={async () => { await signIn(authEmail, authPassword); setAuthPassword(''); setAuthMessage(null); void refreshMeasurements() }} onSignOut={async () => { await signOut(); setAuthMessage(null); setTargetSetpoint(null); void refreshMeasurements() }} authMessage={authMessage} />}
+          {page === 'Documentation' && <Suspense fallback={<div className="empty-state">Chargement de la documentation…</div>}><DocumentationPage document={documentationDocument} setDocument={setDocumentationDocument} /></Suspense>}
           {page === 'Annexe confidentielle' && <SecretAnnexPage choice={annexChoice} setChoice={setAnnexChoice} onExit={() => setPage('Vue d’ensemble')} />}
         </div>
       </main>
@@ -231,12 +235,24 @@ function Dashboard({ current, readings, allReadings, alarms, maxOvershoot, range
   const maintenanceMetrics = useMemo(() => getMaintenanceMetrics(readings, allReadings), [readings, allReadings])
   const processSignals = getProcessSignals(readings, periodAlarms)
   return <>
-      <PageHeading eyebrow="SUPERVISION · BANC DE CHAUFFAGE" title="Vue d’ensemble" description="Suivez les performances et l’état de votre installation." action={<button className="button button-primary" onClick={() => setAiOpen(true)}><span className="sparkle">✳</span> Analyser avec IA</button>} />
+      <section className={`dashboard-hero ${error ? 'dashboard-hero-error' : ''}`} aria-label="État du procédé">
+        <div className="dashboard-hero-copy">
+          <div className="dashboard-hero-meta"><span className="dashboard-kicker">SUPERVISION · BANC DE CHAUFFAGE</span><span className="dashboard-live"><i className={error ? 'offline' : ''} />{error ? 'Connexion à vérifier' : 'Données actualisées'}</span></div>
+          <h1>Vue d’ensemble</h1>
+          <p>État du procédé et performances de l’installation.</p>
+          <button className="dashboard-hero-action" onClick={() => setAiOpen(true)}><span aria-hidden="true">✳</span>Analyser avec IA</button>
+        </div>
+        <div className="dashboard-hero-reading">
+          <span className="dashboard-reading-label">TEMPÉRATURE ACTUELLE</span>
+          <strong>{latest?.temperature == null ? '—' : latest.temperature.toFixed(1)}<small>{latest?.temperature == null ? '' : '°C'}</small></strong>
+          <div className="dashboard-setpoint-line"><span>Consigne appliquée</span><b>{latest?.setpoint == null ? '—' : `${latest.setpoint.toFixed(1)} °C`}</b></div>
+          {latest?.temperature != null && latest.setpoint != null && <span className="dashboard-deviation">Écart {latest.temperature - latest.setpoint >= 0 ? '+' : ''}{(latest.temperature - latest.setpoint).toFixed(1)} °C</span>}
+        </div>
+      </section>
       <div className={`status-banner ${error ? 'warning-banner' : ''}`}><span className="status-symbol">{error ? '!' : latest ? '✓' : '·'}</span><div><strong>{error ? 'Lecture Supabase impossible' : latest ? 'Dernières mesures chargées' : loading ? 'Chargement des mesures' : 'Aucune mesure disponible'}</strong><span>{error ?? (latest ? `Dernière mesure enregistrée le ${formatTimestamp(latest.timestamp)}` : 'La table measurements ne contient pas encore de mesures.')}</span></div></div>
 
 
-    <section className="metrics-grid" aria-label="Indicateurs de fonctionnement">
-      <MetricCard label="Température actuelle" value={latest?.temperature != null ? `${latest.temperature.toFixed(1)} °C` : '—'} detail={latest?.timestamp ? `Mesurée · ${latest.time}` : 'Aucune mesure'} icon="◉" accent="green" />
+    <section className="metrics-grid dashboard-metrics" aria-label="Indicateurs de fonctionnement">
       <MetricCard label="Écart à la consigne" value={latest?.temperature != null && latest.setpoint != null ? `${latest.temperature - latest.setpoint >= 0 ? '+' : ''}${(latest.temperature - latest.setpoint).toFixed(1)} °C` : '—'} detail={latest?.setpoint != null ? `Consigne · ${latest.setpoint.toFixed(1)} °C` : 'Consigne indisponible'} icon="↗" accent="blue" />
       <MetricCard label="Chauffage" value={latest?.heatingState == null ? 'Inconnu' : latest.heatingState ? 'En marche' : 'À l’arrêt'} detail={latest?.power != null ? `Commande · ${latest.power} (unité à confirmer)` : 'Valeur de commande indisponible'} icon="◷" accent="orange" />
       <MetricCard label="Ventilateur" value={latest?.fanState == null ? 'Inconnu' : latest.fanState ? 'En marche' : 'À l’arrêt'} detail="État du dernier relevé" icon="◉" accent="blue" />
@@ -313,30 +329,123 @@ function ActivityItem({ time, title, detail, type }: { time: string; title: stri
 
 function HistoryPage({ history, alarms, loading }: { history: Reading[]; alarms: AlarmEvent[]; loading: boolean }) {
   const [tab, setTab] = useState<'measurements' | 'alarms'>('measurements')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [pageSize, setPageSize] = useState(25)
+  const [measurementPage, setMeasurementPage] = useState(1)
+  const [alarmPage, setAlarmPage] = useState(1)
+  const invalidDateRange = Boolean(startDate && endDate && startDate > endDate)
+  const isInSelectedDateRange = (timestamp: string) => {
+    const date = new Date(timestamp).getTime()
+    const start = startDate ? new Date(`${startDate}T00:00:00`).getTime() : Number.NEGATIVE_INFINITY
+    const end = endDate ? new Date(`${endDate}T23:59:59.999`).getTime() : Number.POSITIVE_INFINITY
+    return date >= start && date <= end
+  }
+  const filteredHistory = invalidDateRange ? [] : history.filter((row) => isInSelectedDateRange(row.timestamp))
+  const filteredAlarms = invalidDateRange ? [] : alarms.filter((alarm) => isInSelectedDateRange(alarm.timestamp))
+  const newestFirstHistory = filteredHistory.slice().sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))
+  const measurementPageCount = Math.max(1, Math.ceil(newestFirstHistory.length / pageSize))
+  const alarmPageCount = Math.max(1, Math.ceil(filteredAlarms.length / pageSize))
+  const activeMeasurementPage = Math.min(measurementPage, measurementPageCount)
+  const activeAlarmPage = Math.min(alarmPage, alarmPageCount)
+  const visibleMeasurements = newestFirstHistory.slice((activeMeasurementPage - 1) * pageSize, activeMeasurementPage * pageSize)
+  const visibleAlarms = filteredAlarms.slice((activeAlarmPage - 1) * pageSize, activeAlarmPage * pageSize)
+  const dateRangeLabel = startDate || endDate
+    ? `${startDate ? new Date(`${startDate}T00:00:00`).toLocaleDateString('fr-FR') : 'début'} au ${endDate ? new Date(`${endDate}T00:00:00`).toLocaleDateString('fr-FR') : 'dernière date chargée'}`
+    : 'toute la période chargée'
+  const updatePageSize = (value: number) => {
+    setPageSize(value)
+    setMeasurementPage(1)
+    setAlarmPage(1)
+  }
+  const clearDateRange = () => {
+    setStartDate('')
+    setEndDate('')
+    setMeasurementPage(1)
+    setAlarmPage(1)
+  }
   return <>
-    <PageHeading eyebrow="SUPERVISION · DONNÉES" title="Historique" description="Mesures et codes d’alarme lus depuis Supabase." action={<button className="button button-secondary" onClick={() => window.print()}>↓ Exporter</button>} />
-    <section className="card history-card"><div className="tabs"><button className={`tab ${tab === 'measurements' ? 'active' : ''}`} onClick={() => setTab('measurements')}>Mesures <span>{history.length}</span></button><button className={`tab ${tab === 'alarms' ? 'active' : ''}`} onClick={() => setTab('alarms')}>Alarmes <span>{alarms.length}</span></button></div>
-      {tab === 'measurements' && <><div className="table-scroll"><table><thead><tr><th>Horodatage</th><th>Température</th><th>Consigne</th><th>Puissance chauffe</th><th>État chauffage</th><th>Ventilateur</th><th>PID</th><th>Mode</th><th>Cycle</th></tr></thead><tbody>{history.map((row) => <tr key={row.id}><td>{formatTimestamp(row.timestamp)}</td><td>{row.temperature == null ? '—' : `${row.temperature.toFixed(2)} °C`}</td><td>{row.setpoint == null ? '—' : `${row.setpoint.toFixed(2)} °C`}</td><td>{row.power == null ? '—' : row.power.toFixed(2)}</td><td>{row.heatingState == null ? '—' : row.heatingState ? 'Actif' : 'Arrêté'}</td><td>{row.fanState == null ? '—' : row.fanState ? 'Actif' : 'Arrêté'}</td><td>{row.pidOutput == null ? '—' : row.pidOutput.toFixed(2)}</td><td>{row.operatingMode ?? '—'}</td><td>{row.cycleNumber ?? '—'}</td></tr>)}</tbody></table>{!history.length && <div className="empty-state">{loading ? 'Chargement des mesures…' : 'Aucune mesure disponible dans Supabase.'}</div>}</div><div className="table-footer"><span>{history.length} dernières mesures (limite : 1 000)</span></div></>}
-      {tab === 'alarms' && <div className="alarm-list">{alarms.map((alarm) => <div key={alarm.id} className="alarm-row"><span className="severity-icon avertissement">!</span><div className="alarm-copy"><strong>{alarm.code}</strong><span>{alarm.temperature == null ? 'Température indisponible' : `Température ${alarm.temperature.toFixed(2)} °C`}{alarm.cycleNumber == null ? '' : ` · cycle ${alarm.cycleNumber}`}</span></div><span className="alarm-date">{formatTimestamp(alarm.timestamp)}</span><span className={`severity-tag ${alarm.code.toLowerCase().includes('high') || alarm.code.toLowerCase().includes('over') || alarm.code.toLowerCase().includes('fault') ? 'avertissement' : 'information'}`}>Code défaut</span></div>)}{!alarms.length && <div className="empty-state">{loading ? 'Chargement des alarmes…' : 'Aucun code alarme enregistré.'}</div>}</div>}
+    <PageHeading eyebrow="SUPERVISION · DONNÉES" title="Historique" description={`Période : ${dateRangeLabel}. ${filteredHistory.length} mesure(s) et ${filteredAlarms.length} alarme(s) affichée(s).`} action={<button className="button button-secondary" onClick={() => window.print()}>↓ Imprimer / PDF</button>} />
+    <section className="card history-card">
+      <div className="history-filters" aria-label="Filtrer l’historique par date">
+        <label htmlFor="history-start-date">Du<input id="history-start-date" type="date" value={startDate} max={endDate || undefined} onChange={(event) => { setStartDate(event.target.value); setMeasurementPage(1); setAlarmPage(1) }} /></label>
+        <label htmlFor="history-end-date">Au<input id="history-end-date" type="date" value={endDate} min={startDate || undefined} onChange={(event) => { setEndDate(event.target.value); setMeasurementPage(1); setAlarmPage(1) }} /></label>
+        <div className="history-filter-actions"><button className="text-button" type="button" onClick={clearDateRange} disabled={!startDate && !endDate}>Réinitialiser</button></div>
+        <span className="history-filter-count">{tab === 'measurements' ? filteredHistory.length : filteredAlarms.length} résultat(s) · {history.length} mesures chargées</span>
+      </div>
+      {invalidDateRange && <p className="history-filter-error" role="alert">La date de début doit être antérieure ou égale à la date de fin.</p>}
+      <div className="tabs"><button className={`tab ${tab === 'measurements' ? 'active' : ''}`} onClick={() => setTab('measurements')}>Mesures <span>{filteredHistory.length}</span></button><button className={`tab ${tab === 'alarms' ? 'active' : ''}`} onClick={() => setTab('alarms')}>Alarmes <span>{filteredAlarms.length}</span></button></div>
+      <div className="history-screen-results">
+        {tab === 'measurements' && <>
+          <div className="table-scroll"><MeasurementTable rows={visibleMeasurements} />{!filteredHistory.length && <div className="empty-state">{invalidDateRange ? 'Vérifiez la plage sélectionnée.' : loading ? 'Chargement des mesures…' : 'Aucune mesure pour cette période.'}</div>}</div>
+          <HistoryPagination total={filteredHistory.length} page={activeMeasurementPage} pageSize={pageSize} onPageChange={setMeasurementPage} onPageSizeChange={updatePageSize} />
+        </>}
+        {tab === 'alarms' && <>
+          <AlarmList alarms={visibleAlarms} />
+          {!filteredAlarms.length && <div className="empty-state">{invalidDateRange ? 'Vérifiez la plage sélectionnée.' : loading ? 'Chargement des alarmes…' : 'Aucune alarme pour cette période.'}</div>}
+          <HistoryPagination total={filteredAlarms.length} page={activeAlarmPage} pageSize={pageSize} onPageChange={setAlarmPage} onPageSizeChange={updatePageSize} />
+        </>}
+      </div>
+      <div className="history-print-results">
+        <h2>{tab === 'measurements' ? 'Mesures' : 'Alarmes'}</h2>
+        {tab === 'measurements' ? <MeasurementTable rows={newestFirstHistory} /> : <AlarmList alarms={filteredAlarms} />}
+        {!filteredHistory.length && tab === 'measurements' && <div className="empty-state">Aucune mesure pour cette période.</div>}
+        {!filteredAlarms.length && tab === 'alarms' && <div className="empty-state">Aucune alarme pour cette période.</div>}
+      </div>
     </section>
   </>
 }
 
-function GuidePage({ setPage }: { setPage: (value: Page) => void }) {
-  return <>
-    <PageHeading eyebrow="AIDE · CENTRE DE CONTRÔLE" title="Guide utilisateur" description="Repères rapides pour lire les données et utiliser les commandes de l’application." />
-    <div className="guide-intro"><strong>À retenir</strong><p>Les valeurs affichées proviennent de Supabase. La consigne cible est enregistrée dans la base, mais ne commande pas directement le chauffage : un backend ou un automate doit encore la lire et l’appliquer.</p><div className="guide-actions"><button className="text-button" onClick={() => setPage('Vue d’ensemble')}>Ouvrir le tableau de bord →</button><button className="text-button" onClick={() => setPage('Maintenance')}>Ouvrir la maintenance →</button><button className="text-button" onClick={() => setPage('Historique')}>Ouvrir l’historique →</button></div></div>
-    <div className="guide-grid">
-      <section className="guide-section"><h2>Suivi des données</h2><p>Dans la barre supérieure, choisissez une lecture manuelle ou périodique. « Direct » active les notifications Supabase Realtime; il ne remplace pas la fréquence de lecture. Le bouton d’actualisation lance une lecture immédiate.</p><p>Un indicateur de chargement, l’heure de dernière lecture ou une erreur apparaît à côté des contrôles.</p></section>
-      <section className="guide-section"><h2>Indicateurs et graphique</h2><p>Les cartes montrent la dernière température, l’écart avec la consigne associée au relevé, les états textuels du chauffage et du ventilateur, ainsi que le dépassement maximal sur la période sélectionnée.</p><p>Le graphique couvre 2, 8 ou 24 heures. Cliquez sur les boutons de légende pour masquer ou réafficher une courbe. La puissance/commande est masquée initialement, car son unité n’est pas documentée. Les états marche/arrêt restent affichés en texte, pas sur le graphique.</p><p>Le panneau « Signaux à vérifier » liste les codes d’alarme de la période et les dépassements de plus de 1 °C. Ce seuil est indicatif, pas une limite de sécurité.</p></section>
-      <section className="guide-section"><h2>Historique et alarmes</h2><p>L’historique présente jusqu’aux 1 000 relevés chargés et permet de consulter séparément les codes d’alarme. Les champs absents sont affichés par un tiret.</p><p>Le bouton « Exporter » ouvre l’impression du navigateur; choisissez « Enregistrer au format PDF » pour produire un PDF. Il ne crée pas de fichier CSV.</p></section>
-      <section className="guide-section"><h2>Consigne cible et relevés</h2><p>Connectez-vous dans Maintenance avec un compte Supabase du même projet que celui configuré pour l’application. Une session est nécessaire pour lire les mesures et écrire.</p><p>La consigne cible enregistre une valeur courante dans une table distincte. La consigne saisie dans « Ajouter une mesure » appartient, elle, à un relevé historique. Pour modifier la cible, entrez une valeur de 0 à 999,99 °C, avec au plus deux décimales.</p><p>Le temps de marche est estimé entre relevés successifs; les temps de cycle utilisent une bande de ±1 °C et trois relevés consécutifs. L’analyse affiche des règles locales, pas une IA connectée. Pour ajouter un relevé, renseignez au moins une valeur et laissez les champs inconnus vides. Supabase ajoute l’horodatage automatiquement.</p></section>
-      <section className="guide-section"><h2>Connexion ou écriture refusée</h2><p>Vérifiez que l’utilisateur existe dans le même projet Supabase, que son adresse est confirmée si nécessaire et que `supabase/schema.sql` a été exécuté dans ce projet.</p><p>La clé publique du projet se configure dans `.env.local`. Ne partagez jamais de mot de passe ni de clé secrète. `heating_power` n’a pas d’unité confirmée et l’enregistrement de la consigne ne pilote pas le chauffage.</p></section>
-    </div>
-  </>
+function MeasurementTable({ rows }: { rows: Reading[] }) {
+  return <table className="measurement-table"><thead><tr><th>Horodatage</th><th>Température</th><th>Consigne</th><th>Puissance chauffe</th><th>État chauffage</th><th>Ventilateur</th><th>PID</th><th>Mode</th><th>Cycle</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}>
+    <td data-label="Horodatage" className="measurement-time">{formatTimestamp(row.timestamp)}</td>
+    <td data-label="Température" className="measurement-temperature">{row.temperature == null ? '—' : `${row.temperature.toFixed(2)} °C`}</td>
+    <td data-label="Consigne">{row.setpoint == null ? '—' : `${row.setpoint.toFixed(2)} °C`}</td>
+    <td data-label="Puissance chauffe">{row.power == null ? '—' : row.power.toFixed(2)}</td>
+    <td data-label="État chauffage">{row.heatingState == null ? '—' : row.heatingState ? 'Actif' : 'Arrêté'}</td>
+    <td data-label="Ventilateur">{row.fanState == null ? '—' : row.fanState ? 'Actif' : 'Arrêté'}</td>
+    <td data-label="PID">{row.pidOutput == null ? '—' : row.pidOutput.toFixed(2)}</td>
+    <td data-label="Mode">{row.operatingMode ?? '—'}</td>
+    <td data-label="Cycle">{row.cycleNumber ?? '—'}</td>
+  </tr>)}</tbody></table>
 }
 
-function MaintenancePage({ onInsertMeasurement, setAiOpen, targetSetpoint, onSaveSetpoint, authUser, authEmail, setAuthEmail, authPassword, setAuthPassword, onSignIn, onSignOut, authMessage }: {
+function AlarmList({ alarms }: { alarms: AlarmEvent[] }) {
+  return <div className="alarm-list">{alarms.map((alarm) => {
+    const normalizedCode = alarm.code.toLowerCase()
+    const isWarning = normalizedCode.startsWith('err') || ['high', 'over', 'fault'].some((keyword) => normalizedCode.includes(keyword))
+    const details = [
+      alarm.temperature == null ? 'Température indisponible' : `${alarm.temperature.toFixed(2)} °C`,
+      alarm.cycleNumber == null ? null : `Cycle ${alarm.cycleNumber}`,
+    ].filter(Boolean).join(' · ')
+    return <article key={alarm.id} className="alarm-row">
+      <span className={`alarm-mark ${isWarning ? 'warning' : 'information'}`} role="img" aria-label={isWarning ? 'Signal à vérifier' : 'Code reçu'}>{isWarning ? '!' : 'i'}</span>
+      <div className="alarm-copy"><strong>{alarm.code}</strong><span>{details}</span></div>
+      <time className="alarm-date" dateTime={alarm.timestamp}>{formatTimestamp(alarm.timestamp)}</time>
+    </article>
+  })}</div>
+}
+
+function HistoryPagination({ total, page, pageSize, onPageChange, onPageSizeChange }: {
+  total: number
+  page: number
+  pageSize: number
+  onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
+}) {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const firstItem = total ? (page - 1) * pageSize + 1 : 0
+  const lastItem = Math.min(page * pageSize, total)
+  return <nav className="history-pagination" aria-label="Pagination de l’historique">
+    <span className="pagination-range">{firstItem}–{lastItem} sur {total}</span>
+    <label className="pagination-size">Par page<select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></label>
+    <div className="pagination-controls"><button type="button" onClick={() => onPageChange(page - 1)} disabled={page <= 1}>Précédent</button><span>Page {page} sur {pageCount}</span><button type="button" onClick={() => onPageChange(page + 1)} disabled={page >= pageCount}>Suivant</button></div>
+  </nav>
+}
+
+function MaintenancePage({ readings, alarms, onInsertMeasurement, setAiOpen, targetSetpoint, onSaveSetpoint, authUser, authEmail, setAuthEmail, authPassword, setAuthPassword, onSignIn, onSignOut, authMessage }: {
+  readings: Reading[]
+  alarms: AlarmEvent[]
   onInsertMeasurement: (row: Omit<Measurement, 'id' | 'timestamp'> & { timestamp?: string }) => Promise<void>
   setAiOpen: (value: boolean) => void
   targetSetpoint: number | null
@@ -355,6 +464,8 @@ function MaintenancePage({ onInsertMeasurement, setAiOpen, targetSetpoint, onSav
   const [busy, setBusy] = useState(false)
   const [measurementMessage, setMeasurementMessage] = useState<string | null>(null)
   const [measurementDraft, setMeasurementDraft] = useState({ temperature: '', setpoint: '', heatingPower: '', heatingState: 'unknown', fanState: 'unknown', pidOutput: '', operatingMode: '', alarmCode: '', cycleNumber: '' })
+  const maintenanceMetrics = useMemo(() => getMaintenanceMetrics(readings), [readings])
+  const processSignals = useMemo(() => getProcessSignals(readings, alarms), [readings, alarms])
 
   useEffect(() => {
     setSetpointDraft(targetSetpoint === null ? '' : String(targetSetpoint))
@@ -453,12 +564,19 @@ function MaintenancePage({ onInsertMeasurement, setAiOpen, targetSetpoint, onSav
   }
   return <>
     <PageHeading eyebrow="INSTALLATION · MAINTENANCE" title="Maintenance" description="Ajoutez un relevé et gérez la consigne de référence de l’installation." action={<button className="button button-primary" onClick={() => setAiOpen(true)}><span className="sparkle">✳</span> Analyser avec IA</button>} />
-    <section className="card control-card"><div className="card-heading"><div><h2>Consigne cible</h2><p>Valeur de référence enregistrée pour le backend ou l’automate ; elle ne commande pas directement le chauffage.</p></div><span className={`severity-tag ${authUser ? 'information' : 'avertissement'}`}>{authUser ? 'Modifiable' : 'Lecture seule'}</span></div>
+    <div className="maintenance-status-grid">
+    <section className="card control-card control-settings-card"><div className="card-heading"><div><h2>Consigne cible</h2><p>Valeur de référence enregistrée pour le backend ou l’automate ; elle ne commande pas directement le chauffage.</p></div><span className={`severity-tag ${authUser ? 'information' : 'avertissement'}`}>{authUser ? 'Modifiable' : 'Lecture seule'}</span></div>
       <div className="control-current"><span>Consigne enregistrée</span><strong>{targetSetpoint === null ? 'Non définie' : `${targetSetpoint.toFixed(2)} °C`}</strong></div>
       {authUser ? <><form className="setpoint-form" onSubmit={(event) => void submitSetpoint(event)}><label htmlFor="target-setpoint">Nouvelle valeur cible (°C)</label><div><input id="target-setpoint" type="number" min="0" max="999.99" step="0.01" required value={setpointDraft} onChange={(event) => setSetpointDraft(event.target.value)} /><button className="button button-primary" type="submit" disabled={busy || !authUser}>{busy ? 'Enregistrement…' : 'Enregistrer la consigne'}</button></div></form><div className="auth-row"><span>Session · {authUser}</span><button className="text-button" onClick={() => void handleSignOut()} disabled={busy}>Se déconnecter</button></div></> : <form className="auth-form" onSubmit={(event) => void submitSignIn(event)}><p>Le compte doit appartenir au même projet Supabase que celui utilisé par l’application.</p><label htmlFor="auth-email">Adresse courriel</label><input id="auth-email" type="email" autoComplete="username" required value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} /><label htmlFor="auth-password">Mot de passe</label><input id="auth-password" type="password" autoComplete="current-password" required value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /><button className="button button-primary" type="submit" disabled={busy}>{busy ? 'Connexion…' : 'Se connecter'}</button>{authMessage && <p className="form-message" role="alert">{authMessage}</p>}{setpointMessage && <p className="form-message" role="alert">{setpointMessage}</p>}</form>}
       {authUser && setpointMessage && <p className="form-message" role="status">{setpointMessage}</p>}
       <div className="maintenance-banner control-warning"><span className="maintenance-symbol">!</span><div><strong>Valeur de référence uniquement</strong><span>Le backend ou l’automate doit encore lire cette consigne et appliquer ses propres limites de sécurité.</span></div></div>
     </section>
+    <section className="card operation-card maintenance-overview"><div className="card-heading"><div><h2>Indicateurs de maintenance</h2><p>Estimations calculées sur les dernières mesures chargées</p></div></div>
+      <div className="operation-stats"><div><span className="operation-icon green-bg">◷</span><span className="operation-copy"><strong>{readings.length > 1 ? formatDuration(maintenanceMetrics.estimatedHeatingRuntimeMs) : '—'}</strong><small>Temps de marche estimé</small></span></div><div><span className="operation-icon blue-bg">↻</span><span className="operation-copy"><strong>{maintenanceMetrics.distinctCycleCount}</strong><small>Cycles distincts observés</small></span></div><div><span className="operation-icon orange-bg">♧</span><span className="operation-copy"><strong>{alarms.length}</strong><small>Codes d’alarme enregistrés</small></span></div></div>
+      <div className="maintenance-metrics"><div><span>Temps pour atteindre la consigne · cycle {maintenanceMetrics.latestCycleNumber ?? '—'}</span><strong>{maintenanceMetrics.timeToTargetMs === null ? maintenanceMetrics.latestCycleNumber === null ? '—' : 'Non atteint' : formatDuration(maintenanceMetrics.timeToTargetMs)}</strong></div><div><span>Stabilisation estimée · ±1 °C, 3 relevés</span><strong>{maintenanceMetrics.stabilizationTimeMs === null ? maintenanceMetrics.latestCycleNumber === null ? '—' : 'Pas encore stabilisé' : formatDuration(maintenanceMetrics.stabilizationTimeMs)}</strong></div></div>
+    </section>
+    </div>
+    <section className={`signal-panel ${processSignals.length ? 'signal-panel-warning' : ''}`} aria-live="polite"><div className="signal-panel-heading"><div><strong>Signaux de maintenance</strong><span>Règles indicatives, pas des alarmes de sécurité</span></div></div>{!readings.length ? <p>Aucune mesure disponible pour l’analyse.</p> : processSignals.length ? <ul>{processSignals.map((signal) => <li key={signal.title}><strong>{signal.title}</strong><span>{signal.detail}</span></li>)}</ul> : <p>Aucun code d’alarme ni dépassement supérieur à {OVERSHOOT_ALERT_THRESHOLD_C} °C détecté.</p>}</section>
     <section className="card control-card measurement-entry-card"><div className="card-heading"><div><h2>Ajouter une mesure</h2><p>Saisissez les informations disponibles. L’horodatage est ajouté automatiquement ; au moins une valeur est nécessaire.</p></div></div>
       {!authUser && <p className="form-message" role="status">Connectez-vous dans le bloc « Consigne cible » pour enregistrer un relevé.</p>}
       <form className="measurement-entry-form" onSubmit={(event) => void submitMeasurement(event)}>
@@ -475,10 +593,7 @@ function MaintenancePage({ onInsertMeasurement, setAiOpen, targetSetpoint, onSav
       </form>
       {measurementMessage && <p className="form-message" role="status">{measurementMessage}</p>}
     </section>
-      <div className="maintenance-grid">
-      <section className="card ai-callout"><div className="ai-orb">✳</div><div><span className="eyebrow">ASSISTANT DE MAINTENANCE</span><h2>Besoin d’un diagnostic ?</h2><p>L’analyse IA pourra examiner les mesures et événements récents lorsque le service sera connecté.</p><button className="button button-primary" onClick={() => setAiOpen(true)}>Analyser les données <span>→</span></button></div><span className="ai-label">APERÇU DÉMO</span></section>
-    </div>
-    <section className="card maintenance-footnote"><span>i</span><p>Les cartes de maintenance sont encore des exemples d’interface ; aucune table de maintenance n’est présente dans le schéma Supabase.</p></section>
+    <section className="card maintenance-footnote"><span>i</span><p>Les indicateurs et signaux de maintenance sont dérivés des mesures chargées ; aucune table dédiée aux interventions ou aux maintenances n’est présente dans le schéma Supabase.</p></section>
   </>
 }
 

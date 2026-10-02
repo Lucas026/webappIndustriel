@@ -16,6 +16,8 @@ Les cartes d’indicateurs utilisent le dernier relevé récupéré, sauf le dé
 
 ## Maintenance et signaux à vérifier
 
+La page **Maintenance** expose ces indicateurs sur l’ensemble des mesures chargées (au plus 1 000), tandis que le résumé du tableau de bord suit la période graphique sélectionnée. Aucune table dédiée aux interventions ou à l’historique de maintenance n’est définie dans le schéma : les indicateurs et signaux sont dérivés de `measurements`.
+
 - Le temps de marche du chauffage est estimé en additionnant les intervalles entre deux relevés consécutifs dont l’état chauffage vaut vrai. Les intervalles supérieurs à deux fois l’intervalle médian d’échantillonnage sont exclus pour limiter l’effet des trous de télémétrie. Les transitions entre relevés ne sont pas connues précisément.
 - Le nombre de cycles compte les valeurs `cycle_number` distinctes présentes dans la période.
 - Pour le dernier cycle chargé, le temps d’atteinte correspond au temps entre le premier relevé exploitable du cycle et le premier relevé où `temperature >= setpoint - 1 °C`. Le calcul utilise les mesures chargées même si le cycle a commencé avant la période affichée.
@@ -50,13 +52,13 @@ L’axe temporel suit les dates de mesure et les présente dans la locale franç
 
 L’onglet **Mesures** présente les colonnes du relevé : date, température, consigne du relevé, valeur brute de puissance, états du chauffage et ventilateur, sortie PID, mode et cycle. `—` signifie une valeur nulle. Les nombres sont affichés avec deux décimales dans le tableau.
 
-La table est chronologique; le compteur indique le nombre de lignes chargées (maximum 1 000), pas le nombre total de lignes en base. **Exporter** appelle `window.print()` : l’impression ou l’enregistrement PDF dépend du navigateur et de ses styles d’impression. Aucun fichier CSV n’est construit.
+La table et la liste des alarmes sont paginées, avec 25 éléments par défaut et des choix de 10, 25 ou 50. Les plus récents apparaissent en premier. Les filtres de date s’appliquent aux mesures et alarmes chargées et incluent chaque journée choisie. Le compteur distingue les résultats de la plage et les mesures chargées (maximum 1 000), pas le nombre total de lignes en base. Sur petit écran, les mesures sont présentées en fiches avec les libellés de chaque valeur. **Imprimer / PDF** appelle `window.print()` sur l’onglet actif et imprime tous les résultats de la plage filtrée, indépendamment de la page visible; l’impression ou l’enregistrement PDF dépend du navigateur et de ses styles d’impression. Aucun fichier CSV n’est construit.
 
 ## Historique des alarmes et activité récente
 
 Un relevé apparaît dans **Alarmes** s’il contient un `alarm_code` non vide. La carte « Activité récente » en montre au plus trois.
 
-La classe visuelle de l’alarme utilise une heuristique textuelle : les codes contenant `high`, `over` ou `fault` sont classés comme avertissement; les autres comme information. Ce classement n’est pas un niveau de gravité défini par le schéma industriel et ne doit pas remplacer une table de codes d’alarme documentée.
+La classe visuelle de l’alarme utilise une heuristique textuelle : les codes commençant par `err` ou contenant `high`, `over` ou `fault` sont classés comme avertissement; les autres comme information. Ce classement n’est pas un niveau de gravité défini par le schéma industriel et ne doit pas remplacer une table de codes d’alarme documentée.
 
 ## Résumé de fonctionnement
 

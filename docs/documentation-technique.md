@@ -2,7 +2,7 @@
 
 ## Vue d’ensemble
 
-Application client React 18, TypeScript et Vite. L’interface est en français et utilise Recharts pour les visualisations et `@supabase/supabase-js` pour l’authentification, l’accès Postgres et Realtime.
+Application client React 18, TypeScript et Vite. L’interface est en français et utilise Recharts pour les visualisations, `@supabase/supabase-js` pour l’authentification, l’accès Postgres et Realtime, ainsi que `react-markdown` et `remark-gfm` pour afficher la documentation Markdown dans l’application.
 
 ```mermaid
 flowchart LR
@@ -30,6 +30,7 @@ flowchart LR
 | `src/services/control.ts` | Authentification, lecture et écriture de la consigne cible. |
 | `supabase/schema.sql` | Tables, index, grants et politiques RLS déclarés par le projet. |
 | `docs/graphique.md`, `docs/visualisations.md` | Détails des axes, calculs et conventions d’affichage. |
+| `docs/*.md` | Sources du guide utilisateur, de la documentation technique, des visualisations, du graphique et du test Supabase affichés dans le portail Documentation. |
 
 ## Configuration et commandes
 
@@ -101,9 +102,9 @@ Ne jamais ajouter une clé de service dans le client. Si un rôle admin devient 
 
 - Le backend/PLC ne consomme pas encore la consigne cible.
 - Les unités de `heating_power` et l’échelle de `pid_output` ne sont pas définies.
-- L’historique est limité à 1 000 lignes côté client; l’export actuel imprime la page et ne produit pas de CSV.
+- L’historique est limité à 1 000 lignes côté client et paginé dans l’interface; l’impression PDF couvre toute la plage filtrée de l’onglet actif et ne produit pas de CSV.
 - Le bouton « Analyser avec IA » affiche actuellement un rapport local fondé sur des règles; aucun fournisseur IA ni backend d’inférence n’est raccordé.
-- Les cartes de maintenance autres que les formulaires ne correspondent pas à des tables dédiées.
+- Les indicateurs et signaux de la page Maintenance sont dérivés des mesures chargées; aucune table d’interventions ou d’historique de maintenance n’est définie.
 - La lecture Realtime dépend de l’activation de la publication sur les tables dans Supabase.
 
 ## Validation après modification

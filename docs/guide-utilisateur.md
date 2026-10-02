@@ -19,7 +19,7 @@ Ne jamais ajouter une clé `service_role` ou une clé secrète dans une variable
 
 - **Vue d’ensemble** : dernières valeurs, indicateurs de fonctionnement, graphique, activité récente.
 - **Historique** : tableau des mesures ou liste des alarmes enregistrées.
-- **Maintenance** : connexion Supabase, consigne cible et formulaire d’ajout d’un relevé.
+- **Maintenance** : indicateurs calculés depuis les relevés chargés, signaux à vérifier, connexion Supabase, consigne cible et formulaire d’ajout d’un relevé.
 
 ## Suivre l’installation
 
@@ -58,13 +58,13 @@ La valeur est stockée comme consigne courante dans `control_settings`. Elle est
 
 ## Indicateurs de maintenance et analyse
 
-Le résumé indique les relevés de chauffage actif, les cycles distincts, les codes d’alarme et un temps de marche estimé à partir des relevés consécutifs. Le temps d’atteinte et la stabilisation sont calculés pour le dernier cycle disponible : atteinte à partir de `consigne - 1 °C`, stabilisation après trois relevés consécutifs à ±1 °C. Ces estimations dépendent de la cadence et de la qualité des données.
+La page Maintenance présente les cycles et alarmes observés, le temps de marche estimé à partir des relevés consécutifs, ainsi que les temps d’atteinte et de stabilisation du dernier cycle disponible. L’atteinte est comptée à partir de `consigne - 1 °C`; la stabilisation requiert trois relevés consécutifs à ±1 °C. Ces estimations dépendent de la cadence et de la qualité des données. Elles portent sur les 1 000 dernières mesures chargées et ne constituent pas un historique complet si la table contient davantage de relevés.
 
 Le panneau **Signaux à vérifier** reprend les codes d’alarme et signale un dépassement supérieur à 1 °C. Ce seuil n’est pas une limite de sécurité constructeur. Le bouton **Analyser avec IA** ouvre actuellement un rapport fondé sur des règles locales; aucun service IA n’est raccordé.
 
 ## Consulter et imprimer l’historique
 
-Dans **Historique**, l’onglet **Mesures** présente jusqu’aux 1 000 derniers relevés disponibles; l’onglet **Alarmes** filtre les relevés qui possèdent un code d’alarme. Le bouton **Exporter** ouvre la fonction d’impression du navigateur. Choisir une imprimante ou « Enregistrer au format PDF » pour créer un fichier PDF; ce bouton ne génère pas de CSV.
+Dans **Historique**, utilisez les champs **Du** et **Au** pour filtrer les mesures et les alarmes par jour; les deux bornes sont incluses. Chaque onglet est paginé, affiche les événements les plus récents en premier et permet de choisir 10, 25 ou 50 lignes par page. **Réinitialiser** retire le filtre. Choisissez l’onglet **Mesures** ou **Alarmes**, puis cliquez sur **Imprimer / PDF** : le PDF contient tous les résultats de l’onglet et de la période sélectionnés, pas seulement la page affichée. Dans la boîte de dialogue du navigateur, choisissez « Enregistrer au format PDF ». L’historique est limité aux 1 000 dernières mesures chargées; aucun fichier CSV n’est généré.
 
 ## Dépannage
 
